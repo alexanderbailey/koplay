@@ -16,3 +16,9 @@ Architecture notes for contributors live in [CLAUDE.md](../CLAUDE.md). The short
 ## Browser compatibility
 
 The display still targets Samsung Tizen 5 (Chrome 63). See the compatibility section of CLAUDE.md before using modern CSS or JS in display code.
+
+## UI previews (no quiz / socket)
+
+With the Vite client running (`npm run dev` in `client/`, or `npm run dev:client` from the repo root):
+
+- [Pixel countdown timer](http://localhost:5173/dev-pixel-timer.html) - self-timing countdown, manual progress slider, accent colours, tick/smooth modes. Not included in production builds.
