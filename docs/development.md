@@ -16,3 +16,9 @@ Architecture notes for contributors live in [CLAUDE.md](../CLAUDE.md). The short
 ## Browser compatibility
 
 The display still targets Samsung Tizen 5 (Chrome 63). See the compatibility section of CLAUDE.md before using modern CSS or JS in display code.
+
+## UI previews (no quiz / socket)
+
+With the Vite client running (`npm run dev` in `client/`, or `npm run dev:client` from the repo root):
+
+- [Trivia reveal + explanation popup](http://localhost:5173/dev-trivia-reveal.html) - toggles for explanation on/off, visible, long text, image, and replay pop-in. Uses the real `TriviaTV` component with fake state; not included in production builds.

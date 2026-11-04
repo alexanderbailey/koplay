@@ -131,13 +131,17 @@ function unwrapCSSLayers() {
   };
 }
 
-export default defineConfig({
+export default defineConfig(({ command }) => ({
   plugins: [react(), tailwindcss(), unwrapCSSLayers()],
   build: {
     rollupOptions: {
       input: {
         tv: resolve(__dirname, 'tv.html'),
         phone: resolve(__dirname, 'phone.html'),
+        // Dev-only UI harnesses (not shipped in production build)
+        ...(command === 'serve'
+          ? { 'dev-trivia-reveal': resolve(__dirname, 'dev-trivia-reveal.html') }
+          : {}),
       },
     },
     outDir: 'dist',
@@ -151,4 +155,4 @@ export default defineConfig({
       },
     },
   },
-});
+}));

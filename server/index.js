@@ -8,6 +8,7 @@ const games = require('./games');
 const users = require('./users');
 const screens = require('./screens');
 const quizStore = require('./quizStore');
+const { normalizeQuestionExplanation } = require('./quizValidate');
 
 const app = express();
 const server = http.createServer(app);
@@ -58,7 +59,7 @@ function apiUser(req, res) {
   return user;
 }
 
-// Upload a quiz via JSON — requires ROLE_UPLOAD
+// Upload a quiz via JSON - requires ROLE_UPLOAD
 app.post('/api/quiz', (req, res) => {
   const user = apiUser(req, res);
   if (!user) return;
@@ -87,10 +88,14 @@ app.post('/api/quiz', (req, res) => {
         return res.status(400).json({ error: `rounds[${ri}].questions[${qi}].choices must be an array of 4 strings` });
       }
       if (typeof q.answer !== 'number' || q.answer < 0 || q.answer > 3) {
-        return res.status(400).json({ error: `rounds[${ri}].questions[${qi}].answer must be 0–3` });
+        return res.status(400).json({ error: `rounds[${ri}].questions[${qi}].answer must be 0-3` });
       }
       if (q.image != null && (typeof q.image !== 'string' || !/^https?:\/\//i.test(q.image))) {
         return res.status(400).json({ error: `rounds[${ri}].questions[${qi}].image must be an http(s) URL` });
+      }
+      const explErr = normalizeQuestionExplanation(q, `rounds[${ri}].questions[${qi}]`);
+      if (explErr) {
+        return res.status(400).json({ error: explErr });
       }
     }
   }
@@ -99,7 +104,7 @@ app.post('/api/quiz', (req, res) => {
   res.status(201).json({ id: quiz.id, topic: quiz.topic, creator: quiz.creator });
 });
 
-// Push a quiz to a screen — requires ROLE_UPLOAD and screen ownership
+// Push a quiz to a screen - requires ROLE_UPLOAD and screen ownership
 app.post('/api/screen/push', (req, res) => {
   const user = apiUser(req, res);
   if (!user) return;
@@ -145,12 +150,12 @@ app.get('/api/code/:code', (req, res) => {
   res.json({ ok: true });
 });
 
-// /screen — in-app login form; users with ROLE_INTERACTIVE authenticate via socket
+// /screen - in-app login form; users with ROLE_INTERACTIVE authenticate via socket
 app.get('/screen', (req, res) =>
   res.sendFile(path.join(distPath, 'tv.html'))
 );
 
-// /screen/:uuid — must be a UUID in SCREENS (not a user token)
+// /screen/:uuid - must be a UUID in SCREENS (not a user token)
 app.get('/screen/:uuid', (req, res) => {
   const screen = screens.findByUuid(req.params.uuid);
   if (!screen) return res.status(404).send('Not found');
@@ -196,7 +201,7 @@ io.on('connection', (socket) => {
     let room;
 
     if (quizId && !authToken) {
-      // Quiz-auth mode: /?quiz=<id> — no user, single-quiz only
+      // Quiz-auth mode: /?quiz=<id> - no user, single-quiz only
       const quiz = quizStore.get(quizId);
       if (!quiz) {
         socket.emit('auth:error', { message: 'Quiz not found' });
@@ -210,14 +215,14 @@ io.on('connection', (socket) => {
     } else if (authToken) {
       const screen = screens.findByUuid(authToken);
       if (screen) {
-        // Physical screen UUID — no user auth, host authenticates separately
+        // Physical screen UUID - no user auth, host authenticates separately
         room = rooms.getOrCreate(authToken);
         rooms.attachBroadcast(room);
         // Local mode: the display belongs to the local owner, so no host password.
         room.session.authUser = users.LOCAL_MODE ? users.localUser() : null;
-        // Don't clear autoQuizId — a pushed quiz may already be set
+        // Don't clear autoQuizId - a pushed quiz may already be set
       } else if (screenMode === 'manual') {
-        // /screen login form — validate as a user with ROLE_INTERACTIVE
+        // /screen login form - validate as a user with ROLE_INTERACTIVE
         const user = users.findByToken(authToken);
         if (!user || !users.hasRole(user, users.ROLE_INTERACTIVE)) {
           socket.emit('auth:error', { message: 'Invalid access code' });

@@ -5,6 +5,7 @@ import PixelAvatar from '../../shared/components/PixelAvatar';
 import QRCodeCanvas from '../../shared/components/QRCodeCanvas';
 import { playSoundById, createMusicElement } from '../../shared/sounds';
 import { useSocket } from '../../shared/context/SocketContext';
+import { QuizAnswerOverlay } from './RetroWindow';
 
 const CHOICE_LABELS = ['A', 'B', 'C', 'D'];
 const CHOICE_BG = ['bg-red-600', 'bg-blue-600', 'bg-amber-500', 'bg-teal-600'];
@@ -228,17 +229,24 @@ function QuestionPhase({ gs, showAnswers }) {
 function RevealPhase({ gs, players }) {
   const counts = gs.choiceCounts || [0, 0, 0, 0];
   const maxCount = Math.max(...counts, 1);
+  const showExplanation = !!(gs.explanation && gs.explanationVisible);
+  const correctIndex = gs.correctIndex;
+  const correctText = (gs.choices && correctIndex != null) ? gs.choices[correctIndex] : '';
+  const correctLabel = correctIndex != null ? CHOICE_LABELS[correctIndex] : '';
+  /* Harder dim on losers while the popup is up; winner stays full via qa-winner */
+  const loserDim = showExplanation ? 'opacity-15' : 'opacity-20';
+  const loserLabelDim = showExplanation ? 'opacity-15' : 'opacity-25';
 
   return (
     <div
-      className="h-screen flex flex-col p-6 gap-4 bg-cover bg-center"
+      className="relative h-screen flex flex-col p-6 gap-4 bg-cover bg-center"
       style={{ backgroundImage: 'url(/tv/background.jpg)' }}
     >
       <div className="text-2xl font-bold text-white text-center bg-black/40 rounded-xl px-4 py-2">
         {gs.question}
       </div>
 
-      {/* Bars — all anchored to the same baseline, height driven by vote count.
+      {/* Bars - all anchored to the same baseline, height driven by vote count.
           When the question has an image it stays visible beside the bars. */}
       <div className="flex-1 flex min-h-0">
         {gs.image && <QuestionImage src={gs.image} className="w-1/3" />}
@@ -246,13 +254,17 @@ function RevealPhase({ gs, players }) {
           {gs.choices.map((choice, i) => {
             const count = counts[i];
             const isCorrect = i === gs.correctIndex;
+            const raise = showExplanation && isCorrect;
             return (
-              <div key={i} className="flex-1 flex flex-col items-center gap-1">
+              <div
+                key={i}
+                className={`flex-1 flex flex-col items-center gap-1 ${raise ? 'qa-winner' : ''}`}
+              >
                 <span className={`text-2xl font-bold ${isCorrect ? 'text-white' : 'text-white/60'}`}>
                   {count}{isCorrect ? ' ✓' : ''}
                 </span>
                 <div
-                  className={`w-full rounded-t-xl transition-all duration-700 ${CHOICE_BAR[i]} ${isCorrect ? '' : 'opacity-20'}`}
+                  className={`w-full rounded-t-xl transition-all duration-700 ${CHOICE_BAR[i]} ${isCorrect ? '' : loserDim}`}
                   style={{ height: `${(count / maxCount) * 50}vh` }}
                 />
               </div>
@@ -261,14 +273,17 @@ function RevealPhase({ gs, players }) {
         </div>
       </div>
 
-      {/* Labels — separate fixed row below the bars */}
+      {/* Labels - separate fixed row below the bars */}
       <div className="flex gap-6 px-8">
         {gs.choices.map((choice, i) => {
           const isCorrect = i === gs.correctIndex;
+          const raise = showExplanation && isCorrect;
           return (
             <div
               key={i}
-              className={`flex-1 rounded-xl px-3 py-3 text-center ${CHOICE_BG[i]} ${isCorrect ? 'ring-4 ring-white' : 'opacity-25'}`}
+              className={`flex-1 rounded-xl px-3 py-3 text-center ${CHOICE_BG[i]} ${
+                isCorrect ? 'ring-4 ring-white' : loserLabelDim
+              } ${raise ? 'qa-winner' : ''}`}
             >
               <span className="text-white font-bold text-lg block">{CHOICE_LABELS[i]}</span>
               <span className="text-white/90 text-sm leading-snug">{choice}</span>
@@ -278,6 +293,15 @@ function RevealPhase({ gs, players }) {
       </div>
 
       <AnsweredRow entries={gs.playerResults || []} />
+
+      {showExplanation && (
+        <QuizAnswerOverlay
+          letter={correctLabel}
+          answer={correctText}
+          explanation={gs.explanation}
+          label="CORRECT ANSWER"
+        />
+      )}
     </div>
   );
 }
@@ -285,7 +309,7 @@ function RevealPhase({ gs, players }) {
 export default function TriviaTV({ gameState: gs, players }) {
   const { sessionState } = useSocket();
   const gameCode = sessionState?.gameCode || null;
-  // Track which question answers are visible for — auto-false when question changes
+  // Track which question answers are visible for - auto-false when question changes
   const [showAnswersKey, setShowAnswersKey] = useState(null);
   const showAnswers = showAnswersKey === `${gs.round}-${gs.questionNum}`;
   const countdownRef = useRef(null);
@@ -324,7 +348,7 @@ export default function TriviaTV({ gameState: gs, players }) {
   }
 
   // Reset answer tracking only when a new question begins (not on roundEnd where
-  // questionNum also increments — that would let stale recentAnswers replay sounds)
+  // questionNum also increments - that would let stale recentAnswers replay sounds)
   useEffect(() => {
     if (gs.phase === 'question') {
       answersProcessedRef.current = new Set();
@@ -332,7 +356,7 @@ export default function TriviaTV({ gameState: gs, players }) {
   }, [gs.phase, gs.round, gs.questionNum]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Play each player's sound whenever recentAnswers gains a new entry.
-  // No phase gate — the Set prevents replays, and the reset above ensures
+  // No phase gate - the Set prevents replays, and the reset above ensures
   // the last player's sound plays even when reveal arrives in the same batch.
   useEffect(() => {
     if (!gs.recentAnswers) return;
@@ -344,7 +368,7 @@ export default function TriviaTV({ gameState: gs, players }) {
     }
   }, [gs.recentAnswers]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Lobby music — looping while on character select screen
+  // Lobby music - looping while on character select screen
   useEffect(() => {
     if (gs.phase === 'characterSelect') {
       const audio = createMusicElement('/tv/lobby.mp3', { loop: true });

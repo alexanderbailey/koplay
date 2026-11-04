@@ -1,0 +1,173 @@
+/* Fonts loaded from tv.html / preview HTML (Pixelify Sans + VT323). */
+
+.qa {
+  /* One design pixel - fixed 12px throughout */
+  --p: 12px;
+  --qa-accent: #2563eb;
+  --qa-ink: #ffffff;
+  --qa-outline: #000000;
+  --qa-bar: #ffffff;
+  --qa-bar-ink: #000000;
+  --qa-shadow: #0f2c5e;
+
+  /* Stepped pixel corner, one pixel deep */
+  --qa-notch: polygon(
+    var(--p) 0, calc(100% - var(--p)) 0, calc(100% - var(--p)) var(--p),
+    100% var(--p), 100% calc(100% - var(--p)), calc(100% - var(--p)) calc(100% - var(--p)),
+    calc(100% - var(--p)) 100%, var(--p) 100%, var(--p) calc(100% - var(--p)),
+    0 calc(100% - var(--p)), 0 var(--p), var(--p) var(--p)
+  );
+
+  /* 1280px at 12px; shrink on narrow panes (avoid CSS min() for Chrome 63) */
+  width: calc(var(--p) * 106.667);
+  max-width: 96%;
+  font-family: "Pixelify Sans", monospace;
+  /* drop-shadow follows the stepped shape; colour set from React */
+  filter: drop-shadow(var(--p) var(--p) 0 var(--qa-shadow));
+  animation: qa-in 500ms ease-out both;
+}
+
+.qa *, .qa *::before, .qa *::after { box-sizing: border-box; }
+
+.qa-frame {
+  background: var(--qa-outline);
+  padding: var(--p);
+  clip-path: var(--qa-notch);
+}
+
+.qa-inner {
+  display: flex;
+  flex-direction: column;
+  background: var(--qa-outline);
+  clip-path: var(--qa-notch);
+}
+
+/* ---------- Title bar ---------- */
+.qa-bar {
+  height: calc(var(--p) * 6);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 calc(var(--p) * 2) 0 calc(var(--p) * 2.333);
+  background: var(--qa-bar);
+  color: var(--qa-bar-ink);
+}
+.qa-label {
+  font-weight: 700;
+  font-size: calc(var(--p) * 2.25);
+  letter-spacing: calc(var(--p) / 12);
+}
+.qa-x {
+  width: calc(var(--p) * 3);
+  height: calc(var(--p) * 3);
+  display: block;
+}
+
+/* ---------- Body (answer colour) ---------- */
+.qa-body {
+  background: var(--qa-accent);
+  color: var(--qa-ink);
+  /* black strip under title via margin (flex gap unsupported on Chrome 63) */
+  margin-top: var(--p);
+  padding: calc(var(--p) * 3) calc(var(--p) * 4) calc(var(--p) * 3.667);
+  display: flex;
+  flex-direction: column;
+}
+.qa-body > * + * {
+  margin-top: calc(var(--p) * 3);
+}
+
+.qa-answer {
+  display: flex;
+  align-items: center;
+}
+
+/* Plain square tile (no clip-path / gear look) */
+.qa-tile {
+  width: calc(var(--p) * 5.5);
+  height: calc(var(--p) * 5.5);
+  flex: none;
+  display: grid;
+  place-items: center;
+  background: var(--qa-ink);
+  color: var(--qa-accent);
+  font-weight: 700;
+  font-size: calc(var(--p) * 4);
+  line-height: 1;
+  /* Gap to answer text - on the tile so heading margin:0 cannot wipe it */
+  margin-right: calc(var(--p) * 3);
+}
+
+.qa-heading {
+  margin: 0;
+  font-family: "Pixelify Sans", monospace;
+  font-weight: 700;
+  font-size: calc(var(--p) * 4);
+  line-height: 1.1;
+  overflow-wrap: break-word;
+  word-wrap: break-word;
+}
+
+.qa-text {
+  margin: 0;
+  font-family: VT323, monospace;
+  font-size: calc(var(--p) * 3.25);
+  line-height: 1.2;
+}
+
+.qa-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* ---------- Stacking: dim < winner bar/label < popup ---------- */
+.qa-dim {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 20;
+  background: rgba(5, 5, 12, 0.7);
+  pointer-events: none;
+}
+
+/* Winning bar / label: above dim, below popup */
+.qa-winner {
+  position: relative;
+  z-index: 25;
+}
+
+.qa-popup {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 40;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 4vh 4vw;
+  box-sizing: border-box;
+  pointer-events: none;
+}
+
+.qa-popup .qa {
+  pointer-events: auto;
+  max-width: 92%;
+}
+
+/* Smooth overshoot pop-in (transform + opacity only - Chrome 63 safe) */
+@keyframes qa-in {
+  0%   { transform: scale(0.85); opacity: 0; }
+  55%  { transform: scale(1.06); opacity: 1; }
+  100% { transform: scale(1);    opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .qa { animation: none; }
+}

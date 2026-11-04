@@ -45,3 +45,13 @@ export function SocketProvider({ role, authToken, screenMode, code, quizId, onAu
 export function useSocket() {
   return useContext(SocketContext);
 }
+
+/** Offline provider for local UI previews (no Socket.IO connection). */
+export function MockSocketProvider({ sessionState = null, myId = 'dev', children }) {
+  const value = { socket: null, sessionState, myId, emit: () => {} };
+  return (
+    <SocketContext.Provider value={value}>
+      {children}
+    </SocketContext.Provider>
+  );
+}

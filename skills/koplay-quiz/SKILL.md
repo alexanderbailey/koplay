@@ -18,6 +18,7 @@ Rules:
 - Vary which index is correct; don't cluster answers at index 0
 - Questions must be factually accurate
 - Easy = general knowledge, Medium = moderately challenging, Hard = quite difficult
+- Optional `explanation`: a short "why this is correct" shown on the TV after voting. Include it ONLY when the correct choice text alone would leave players unclear (jargon, terse names, non-obvious facts). Skip it when the answer is self-explanatory (e.g. "Paris", "4"). Aim for 1-2 sentences (~200-260 characters); never exceed 300. Omit the field entirely when unused (no empty string).
 
 Use exactly this JSON structure (raw object, no markdown fences):
 
@@ -25,7 +26,10 @@ Use exactly this JSON structure (raw object, no markdown fences):
 {
   "topic": "<topic>",
   "rounds": [
-    {"name": "Easy", "questions": [{"question": "...", "choices": ["...", "...", "...", "..."], "answer": 0}]},
+    {"name": "Easy", "questions": [
+      {"question": "...", "choices": ["...", "...", "...", "..."], "answer": 0},
+      {"question": "...", "choices": ["...", "...", "...", "..."], "answer": 2, "explanation": "One or two sentences explaining why this is right."}
+    ]},
     {"name": "Medium", "questions": [...]},
     {"name": "Hard", "questions": [...]}
   ]
