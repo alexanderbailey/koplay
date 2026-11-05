@@ -14,8 +14,18 @@ function PhoneRoot() {
   const [code, setCode] = useState(urlCode);
   const [codeError, setCodeError] = useState('');
 
+  // Keep the code in the URL so a reload (or the browser reopening the tab)
+  // reconnects to the same game instead of asking for the code again.
+  function setUrlCode(c) {
+    const url = new URL(window.location.href);
+    if (c) url.searchParams.set('code', c);
+    else url.searchParams.delete('code');
+    window.history.replaceState(null, '', url);
+  }
+
   function handleCode(c, err) {
     if (err) { setCodeError(err); return; }
+    setUrlCode(c);
     setCode(c);
     setCodeError('');
   }
@@ -26,7 +36,7 @@ function PhoneRoot() {
 
   return (
     <SocketProvider role="player" code={code}>
-      <App onInvalidCode={() => { setCode(''); setCodeError('Game session ended'); }} />
+      <App onInvalidCode={() => { setUrlCode(''); setCode(''); setCodeError('Game session ended'); }} />
     </SocketProvider>
   );
 }

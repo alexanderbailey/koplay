@@ -162,15 +162,17 @@ function CharacterSelectPhase({ gs, players, gameCode }) {
           {players.map((p) => {
             const avatar = getAvatar(p.avatarId);
             return (
-              <div key={p.id} className="flex flex-col items-center gap-2">
+              <div key={p.id} className={`flex flex-col items-center ${p.connected === false ? 'opacity-40' : ''}`}>
                 {avatar
                   ? <PixelAvatar avatar={avatar} size={72} />
                   : <div className="w-[72px] h-[72px] rounded-full border-2 border-white/30 bg-white/10 flex items-center justify-center">
                       <span className="text-white/40 text-2xl">?</span>
                     </div>
                 }
-                <span className="text-white text-lg font-semibold">{p.name}</span>
-                {p.avatarId && <span className="text-white/60 text-sm">Ready</span>}
+                <span className="text-white text-lg font-semibold mt-2">{p.name}</span>
+                {p.connected === false
+                  ? <span className="text-white/60 text-sm mt-2">Reconnecting...</span>
+                  : p.avatarId && <span className="text-white/60 text-sm mt-2">Ready</span>}
               </div>
             );
           })}

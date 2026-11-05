@@ -255,15 +255,31 @@ io.on('connection', (socket) => {
 
     socket.join(gameCode);
     socketRooms.set(socket.id, { gameCode, role: 'player' });
+
+    // Reconnect: a phone that presents a known secret takes its seat back.
+    const secret = socket.handshake.auth && socket.handshake.auth.playerSecret;
+    const existingId = session.findBySecret(secret);
+    if (existingId) {
+      bindPlayer(room, socket, existingId);
+    } else if (secret) {
+      // Stale secret (player was removed or the session reset): forget it.
+      socket.emit('player:identity', { playerId: null, secret: null });
+    }
+
     socket.emit('session:state', {
       ...session.getPublicState(),
       gameCode,
       hostAuthRequired: !session.authUser && !room.autoQuizId,
     });
+    if (existingId) broadcastState(gameCode);
 
-    socket.on('player:join', ({ name, avatarId, noiseId, accessCode }) => {
+    socket.on('player:join', ({ name, avatarId, noiseId, accessCode } = {}) => {
       if (!name || typeof name !== 'string' || !name.trim()) {
         socket.emit('error', { message: 'Name is required' });
+        return;
+      }
+      if (socket.data.playerId && session.players.has(socket.data.playerId)) {
+        socket.emit('error', { message: 'Already joined' });
         return;
       }
       if (session.gameState?.joinLocked) {
@@ -285,19 +301,23 @@ io.on('connection', (socket) => {
         socket.emit('error', { message: result.error });
         return;
       }
-      session.players.get(socket.id).ip = socket.handshake.address;
-      if (session.hostId === socket.id && room.autoQuizId) {
+      const playerId = result.id;
+      socket.data.playerId = playerId;
+      session.players.get(playerId).ip = socket.handshake.address;
+      socket.emit('player:identity', { playerId, secret: result.secret });
+      if (session.hostId === playerId && room.autoQuizId) {
         const triviaGame = games.get('trivia');
         if (triviaGame) {
           session.selectGame(triviaGame);
-          triviaGame.handleAction(session, socket.id, { type: 'loadQuiz', quizId: room.autoQuizId });
+          triviaGame.handleAction(session, playerId, { type: 'loadQuiz', quizId: room.autoQuizId });
         }
       }
       broadcastState(gameCode);
     });
 
-    socket.on('host:selectGame', ({ gameId }) => {
-      if (socket.id !== session.hostId) {
+    socket.on('host:selectGame', ({ gameId } = {}) => {
+      const playerId = socket.data.playerId;
+      if (!playerId || playerId !== session.hostId) {
         socket.emit('error', { message: 'Only the host can select a game' });
         return;
       }
@@ -308,23 +328,25 @@ io.on('connection', (socket) => {
       }
       session.selectGame(game);
       if (game.id === 'trivia' && room.autoQuizId) {
-        game.handleAction(session, socket.id, { type: 'loadQuiz', quizId: room.autoQuizId });
+        game.handleAction(session, playerId, { type: 'loadQuiz', quizId: room.autoQuizId });
       }
       broadcastState(gameCode);
     });
 
     socket.on('game:action', (data) => {
+      const playerId = socket.data.playerId;
+      if (!playerId || !session.players.has(playerId)) return;
       if (!session.currentGame) return;
       const game = games.get(session.currentGame.id);
       if (game && game.handleAction) {
-        game.handleAction(session, socket.id, data);
+        game.handleAction(session, playerId, data || {});
         // After playAgain resets to topicSelect, auto-load a pushed quiz instead of showing auth
         if (
           room.autoQuizId &&
           session.gameState?.phase === 'topicSelect' &&
-          socket.id === session.hostId
+          playerId === session.hostId
         ) {
-          game.handleAction(session, socket.id, { type: 'loadQuiz', quizId: room.autoQuizId });
+          game.handleAction(session, playerId, { type: 'loadQuiz', quizId: room.autoQuizId });
         }
         broadcastState(gameCode);
       }
@@ -342,19 +364,95 @@ io.on('connection', (socket) => {
     const room = rooms.getByCode(gameCode);
     if (!room) return;
 
-    if (room.session.currentGame) {
-      const game = games.get(room.session.currentGame.id);
-      if (game && game.onPlayerLeave) {
-        game.onPlayerLeave(room.session, socket.id);
-      }
+    const playerId = socket.data.playerId;
+    if (!playerId) return;
+    const session = room.session;
+    // Ignore a stale socket if the player has already reconnected on a new one.
+    if (!session.markDisconnected(playerId, socket.id)) return;
+
+    if (session.currentGame) {
+      const game = games.get(session.currentGame.id);
+      if (game && game.onPlayerDisconnect) game.onPlayerDisconnect(session, playerId);
     }
-    room.session.removePlayer(socket.id);
-    if (room.session.players.size === 0) {
-      room.autoQuizId = null;
-    }
+
+    // Keep the seat (name, avatar, score) so the phone can reconnect. Pass host on
+    // after a short grace period so a quick app switch doesn't cost the host role,
+    // and only drop the player for good after a longer one.
+    const timers = { gameCode };
+    timers.host = setTimeout(() => {
+      if (session.players.get(playerId)?.connected) return;
+      if (session.hostId === playerId && session.promoteConnectedHost()) broadcastState(gameCode);
+    }, HOST_HANDOFF_MS);
+    const removeAfter = session.gameState?.joinLocked ? REMOVE_IN_GAME_MS : REMOVE_IN_LOBBY_MS;
+    timers.remove = setTimeout(() => removePlayer(room, playerId), removeAfter);
+    clearDisconnectTimers(playerId);
+    disconnectTimers.set(playerId, timers);
+
     broadcastState(gameCode);
   });
 });
+
+// How long a disconnected player keeps their seat before being removed, and how
+// long a disconnected host keeps the host role before it passes to someone else.
+const HOST_HANDOFF_MS = 20 * 1000;
+const REMOVE_IN_LOBBY_MS = 2 * 60 * 1000;
+const REMOVE_IN_GAME_MS = 60 * 60 * 1000;
+
+const disconnectTimers = new Map(); // playerId -> { host, remove }
+
+function clearDisconnectTimers(playerId) {
+  const t = disconnectTimers.get(playerId);
+  if (!t) return;
+  clearTimeout(t.host);
+  clearTimeout(t.remove);
+  disconnectTimers.delete(playerId);
+}
+
+function bindPlayer(room, socket, playerId) {
+  const session = room.session;
+  const player = session.players.get(playerId);
+  // If the player is still bound to another live socket (e.g. a second tab), detach it.
+  if (player.socketId && player.socketId !== socket.id) {
+    const old = io.sockets.sockets.get(player.socketId);
+    if (old) {
+      old.data.playerId = null;
+      old.emit('player:identity', { playerId: null, secret: null, replaced: true });
+    }
+  }
+  clearDisconnectTimers(playerId);
+  session.attachSocket(playerId, socket.id);
+  socket.data.playerId = playerId;
+  socket.emit('player:identity', { playerId, secret: player.secret });
+
+  // If the host has been gone past the grace period with no one to hand over to,
+  // the first player back takes it so the game isn't stuck.
+  const host = session.players.get(session.hostId);
+  if (host && !host.connected && Date.now() - host.disconnectedAt >= HOST_HANDOFF_MS) {
+    session.promoteConnectedHost();
+  }
+
+  if (session.currentGame) {
+    const game = games.get(session.currentGame.id);
+    if (game && game.onPlayerReconnect) game.onPlayerReconnect(session, playerId);
+  }
+}
+
+function removePlayer(room, playerId) {
+  clearDisconnectTimers(playerId);
+  const session = room.session;
+  const player = session.players.get(playerId);
+  if (!player || player.connected) return;
+
+  if (session.currentGame) {
+    const game = games.get(session.currentGame.id);
+    if (game && game.onPlayerLeave) game.onPlayerLeave(session, playerId);
+  }
+  session.removePlayer(playerId);
+  if (session.players.size === 0) {
+    room.autoQuizId = null;
+  }
+  broadcastState(room.gameCode);
+}
 
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`KoPlay is running on port ${PORT}`);

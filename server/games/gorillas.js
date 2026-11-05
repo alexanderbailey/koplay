@@ -93,7 +93,7 @@ module.exports = {
   description: 'Throw bananas across the skyline!',
 
   init(session) {
-    const playerIds = [...session.players.keys()];
+    const playerIds = [...session.players].filter(([, p]) => p.connected !== false).map(([id]) => id);
     if (playerIds.length < 2) {
       return { phase: 'error', message: 'Need at least 2 players' };
     }

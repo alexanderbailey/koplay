@@ -7,7 +7,7 @@ import LobbyPlayerScreen from './screens/LobbyPlayerScreen';
 import PlayingScreen from './screens/PlayingScreen';
 
 export default function App({ onInvalidCode }) {
-  const { sessionState, myId, emit, socket } = useSocket();
+  const { sessionState, myId, emit, socket, connected, replaced } = useSocket();
   const [joined, setJoined] = useState(false);
   const [error, setError] = useState(null);
   const joinedRef = useRef(false);
@@ -43,6 +43,15 @@ export default function App({ onInvalidCode }) {
     joinedRef.current = true;
   }, [emit]);
 
+  if (replaced) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center gap-2 p-6 text-center">
+        <p className="text-xl font-bold">Playing on another tab</p>
+        <p className="text-muted-light">This game was opened somewhere else. Close this tab and carry on there.</p>
+      </div>
+    );
+  }
+
   if (!sessionState) {
     return (
       <div className="min-h-screen flex items-center justify-center p-6">
@@ -69,18 +78,33 @@ export default function App({ onInvalidCode }) {
     return <JoinScreen onJoin={handleJoin} error={error} />;
   }
 
+  const banner = !connected && (
+    <div className="fixed top-0 left-0 right-0 z-50 py-2 text-center text-sm font-semibold text-white bg-error/90">
+      Reconnecting...
+    </div>
+  );
+
   if (sessionState.state === 'lobby') {
-    if (amHost) return <LobbyHostScreen players={sessionState.players} />;
-    return <LobbyPlayerScreen players={sessionState.players} />;
+    return (
+      <>
+        {banner}
+        {amHost
+          ? <LobbyHostScreen players={sessionState.players} />
+          : <LobbyPlayerScreen players={sessionState.players} />}
+      </>
+    );
   }
 
   if (sessionState.state === 'playing') {
     return (
-      <PlayingScreen
-        state={sessionState}
-        myId={myId}
-        isHost={amHost}
-      />
+      <>
+        {banner}
+        <PlayingScreen
+          state={sessionState}
+          myId={myId}
+          isHost={amHost}
+        />
+      </>
     );
   }
 

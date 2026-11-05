@@ -290,15 +290,64 @@ function CharacterSelectPhase({ gs, myId, isHost, players, emit }) {
   return null;
 }
 
-function QuestionPhase({ gs, emit }) {
-  const [answered, setAnswered] = useState(false);
+// Shown to the host while anyone is disconnected: the quiz waits for them on each
+// question until the host chooses to carry on without them (they score nothing
+// while away, and are picked up again automatically when they reconnect).
+function AwayBanner({ gs, players, isHost, emit }) {
+  if (!isHost || !gs.joinLocked) return null;
+  const skipped = gs.skippedIds || [];
+  const away = players.filter((p) => p.connected === false);
+  if (away.length === 0) return null;
+  const waiting = away.filter((p) => !skipped.includes(p.id));
+  const names = (list) => list.map((p) => p.name).join(', ');
+
+  if (waiting.length === 0) {
+    return (
+      <div className="w-full max-w-xs px-3 py-2 rounded-lg bg-surface-light/60 text-center text-sm text-muted-light">
+        Playing without {names(away)} until they reconnect
+      </div>
+    );
+  }
+
+  return (
+    <div className="w-full max-w-xs flex flex-col items-center gap-2 px-3 py-3 rounded-lg bg-error/20 border border-error/40 text-center">
+      <p className="text-sm text-white">
+        {names(waiting)} {waiting.length === 1 ? 'has' : 'have'} disconnected
+      </p>
+      <button
+        onClick={() => emit('game:action', { type: 'skipDisconnected' })}
+        className="w-full py-2 bg-surface-light hover:bg-surface-light/80 text-white text-sm font-semibold rounded-lg"
+      >
+        Continue without {waiting.length === 1 ? 'them' : 'them all'}
+      </button>
+    </div>
+  );
+}
+
+function QuestionPhase({ gs, myId, isHost, players, emit }) {
+  // After a reconnect the server still has our answer; restore the locked-in view.
+  const serverAnswered = !!(gs.recentAnswers || []).some((a) => a.playerId === myId);
+  const [answered, setAnswered] = useState(serverAnswered);
   const [selectedIndex, setSelectedIndex] = useState(null);
-  const [ready, setReady] = useState(false);
+  // Skip the "Get Ready" pause if we're rejoining a question that's already running.
+  const startedAt = gs.timer ? gs.timer.endsAt - gs.timer.duration * 1000 : Date.now();
+  const [ready, setReady] = useState(Date.now() - startedAt >= 3000);
 
   useEffect(() => {
-    const t = setTimeout(() => setReady(true), 3000);
+    if (ready) return undefined;
+    const t = setTimeout(() => setReady(true), Math.max(0, 3000 - (Date.now() - startedAt)));
     return () => clearTimeout(t);
   }, []);
+
+  useEffect(() => {
+    if (serverAnswered) setAnswered(true);
+  }, [serverAnswered]);
+
+  const awayBanner = isHost && (
+    <div className="flex justify-center p-2 bg-surface-light/50">
+      <AwayBanner gs={gs} players={players} isHost={isHost} emit={emit} />
+    </div>
+  );
 
   function handleAnswer(index) {
     emit('game:action', { type: 'answer', index });
@@ -320,6 +369,7 @@ function QuestionPhase({ gs, emit }) {
         <div className="p-4 text-center text-white font-semibold bg-surface-light/80">
           Answer locked in!
         </div>
+        {awayBanner}
         <div className="grid grid-cols-2 flex-1">
           {gs.choices.map((choice, i) => (
             <div
@@ -342,6 +392,7 @@ function QuestionPhase({ gs, emit }) {
       <div className="p-4 text-center text-white/60 text-sm bg-surface-light/50">
         Pick your answer!
       </div>
+      {awayBanner}
       <div className="grid grid-cols-2 flex-1">
         {gs.choices.map((choice, i) => (
           <button
@@ -378,7 +429,7 @@ export default function TriviaPhone({ gameState: gs, myId, isHost, players, emit
   }
 
   if (gs.phase === 'question') {
-    return <QuestionPhase key={questionKey} gs={gs} emit={emit} />;
+    return <QuestionPhase key={questionKey} gs={gs} myId={myId} isHost={isHost} players={players} emit={emit} />;
   }
 
   if (gs.phase === 'roundIntro') {
@@ -386,6 +437,7 @@ export default function TriviaPhone({ gameState: gs, myId, isHost, players, emit
       <div className="min-h-screen flex flex-col items-center justify-center gap-3 p-6">
         <p className="text-3xl font-black">{gs.roundName}</p>
         <p className="text-muted-light">Round {gs.round} of {gs.totalRounds}</p>
+        <AwayBanner gs={gs} players={players} isHost={isHost} emit={emit} />
         {isHost && (
           <button
             onClick={() => emit('game:action', { type: 'advance' })}
@@ -401,7 +453,7 @@ export default function TriviaPhone({ gameState: gs, myId, isHost, players, emit
 
   if (gs.phase === 'reveal') {
     const myPlayer = players.find((p) => p.id === myId);
-    const me = gs.playerResults?.find((r) => myPlayer && r.name === myPlayer.name);
+    const me = gs.playerResults?.find((r) => (r.id ? r.id === myId : myPlayer && r.name === myPlayer.name));
 
     return (
       <div className="min-h-screen flex flex-col items-center justify-center gap-3 p-6">
@@ -411,6 +463,7 @@ export default function TriviaPhone({ gameState: gs, myId, isHost, players, emit
           </p>
         )}
         <p className="text-muted-light">Your score: {gs.scores?.[myId] || 0}</p>
+        <AwayBanner gs={gs} players={players} isHost={isHost} emit={emit} />
         {isHost && (
           <button
             onClick={() => emit('game:action', { type: 'advance' })}
@@ -429,6 +482,7 @@ export default function TriviaPhone({ gameState: gs, myId, isHost, players, emit
       <div className="min-h-screen flex flex-col items-center justify-center gap-3 p-6">
         <div className="text-lg font-bold">{isLastRound ? 'Final Scores!' : `End of ${gs.roundName} Round`}</div>
         <p className="text-muted-light">Your score: {gs.scores?.[myId] || 0}</p>
+        {!isLastRound && <AwayBanner gs={gs} players={players} isHost={isHost} emit={emit} />}
         {isHost && !isLastRound && (
           <button
             onClick={() => emit('game:action', { type: 'advance' })}

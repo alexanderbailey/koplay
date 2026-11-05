@@ -41,6 +41,24 @@ function activePlayers(session) {
   return Array.from(session.players.keys());
 }
 
+// Players a question waits for: everyone except those the host chose to
+// continue without (disconnected players stay awaited until then, so a quick
+// app switch doesn't cost anyone a question).
+function awaitedPlayers(session, excludeId) {
+  const skipped = (session.gameState && session.gameState.skippedIds) || [];
+  return activePlayers(session).filter((id) => id !== excludeId && !skipped.includes(id));
+}
+
+function updateAnswerCounts(session, excludeId) {
+  const gs = session.gameState;
+  const p = priv(session);
+  const awaited = awaitedPlayers(session, excludeId);
+  gs.totalPlayers = awaited.length;
+  if (gs.phase === 'question' && p.roundAnswers) {
+    gs.answeredCount = awaited.filter((id) => p.roundAnswers.has(id)).length;
+  }
+}
+
 function getCurrentQuestion(session) {
   const gs = session.gameState;
   const p = priv(session);
@@ -152,7 +170,7 @@ function startQuestion(session) {
   gs.image = q.image || null;
   gs.choices = q.choices;
   gs.answeredCount = 0;
-  gs.totalPlayers = activePlayers(session).length;
+  gs.totalPlayers = awaitedPlayers(session).length;
   gs.correctIndex = null;
   gs.playerResults = null;
   gs.choiceCounts = null;
@@ -196,7 +214,9 @@ function showReveal(session) {
     }
     const player = session.players.get(id);
     playerResults.push({
+      id,
       name: player ? player.name : '(left)',
+      away: player ? !player.connected : true,
       correct,
       avatarId: player ? player.avatarId : null,
       choiceIndex: answer != null ? answer : null,
@@ -292,10 +312,10 @@ function gameOver(session) {
   session.broadcastState();
 }
 
-function checkAllAnswered(session) {
+function checkAllAnswered(session, excludeId) {
   const p = priv(session);
-  const players = activePlayers(session);
-  if (p.roundAnswers.size >= players.length) {
+  const awaited = awaitedPlayers(session, excludeId);
+  if (awaited.every((id) => p.roundAnswers.has(id))) {
     endQuestion(session, true);
     return true;
   }
@@ -380,6 +400,7 @@ module.exports = {
       earlyEnd: false,
       timer: null,
       finalRanking: null,
+      skippedIds: [],
     };
 
     return session.gameState;
@@ -497,6 +518,7 @@ module.exports = {
         gs.scores[id] = 0;
       }
 
+      gs.skippedIds = [];
       gs.totalPlayers = players.length;
 
       showRoundIntro(session);
@@ -513,7 +535,7 @@ module.exports = {
       if (typeof index !== 'number' || index < 0 || index >= session.gameState.choices.length) return;
 
       p.roundAnswers.set(playerId, index);
-      session.gameState.answeredCount = p.roundAnswers.size;
+      updateAnswerCounts(session);
 
       const player = session.players.get(playerId);
       if (player) {
@@ -526,6 +548,25 @@ module.exports = {
 
       session.broadcastState();
       checkAllAnswered(session);
+      return;
+    }
+
+    // Host chooses to carry on without everyone currently disconnected. They score
+    // nothing while away, and are waited for again as soon as they reconnect.
+    if (action.type === 'skipDisconnected') {
+      if (playerId !== session.hostId) return;
+      const gs = session.gameState;
+      if (!gs.joinLocked) return;
+      const skipped = new Set(gs.skippedIds || []);
+      for (const [id, player] of session.players) {
+        if (!player.connected) skipped.add(id);
+      }
+      gs.skippedIds = Array.from(skipped);
+      updateAnswerCounts(session);
+      if (gs.phase === 'question' && priv(session).roundAnswers) {
+        if (checkAllAnswered(session)) return;
+      }
+      session.broadcastState();
       return;
     }
 
@@ -553,8 +594,21 @@ module.exports = {
     }
   },
 
+  onPlayerReconnect(session, playerId) {
+    const gs = session.gameState;
+    if (!gs || gs.phase === 'error') return;
+    if (gs.skippedIds && gs.skippedIds.includes(playerId)) {
+      gs.skippedIds = gs.skippedIds.filter((id) => id !== playerId);
+    }
+    if (gs.joinLocked && gs.scores && gs.scores[playerId] == null) gs.scores[playerId] = 0;
+    updateAnswerCounts(session);
+  },
+
   onPlayerLeave(session, playerId) {
     if (!session.gameState || session.gameState.phase === 'error') return;
+    if (session.gameState.skippedIds) {
+      session.gameState.skippedIds = session.gameState.skippedIds.filter((id) => id !== playerId);
+    }
 
     if (
       session.gameState.phase === 'topicSelect' ||
@@ -566,7 +620,7 @@ module.exports = {
     }
 
     const remaining = activePlayers(session).filter((id) => id !== playerId);
-    session.gameState.totalPlayers = remaining.length;
+    updateAnswerCounts(session, playerId);
 
     if (remaining.length < MIN_PLAYERS) {
       clearTimer(session);
@@ -576,7 +630,7 @@ module.exports = {
 
     const p = priv(session);
     if (session.gameState.phase === 'question' && p.roundAnswers) {
-      checkAllAnswered(session);
+      checkAllAnswered(session, playerId);
     }
   },
 };
