@@ -3,6 +3,8 @@ import ConfettiCanvas from '../../shared/components/ConfettiCanvas';
 import AVATARS from '../../shared/avatars';
 import PixelAvatar from '../../shared/components/PixelAvatar';
 import QRCodeCanvas from '../../shared/components/QRCodeCanvas';
+import { PixelTimer } from '../../shared/components/PixelTimer';
+import { useTimer } from '../../shared/hooks/useTimer';
 import { playSoundById, createMusicElement } from '../../shared/sounds';
 import { useSocket } from '../../shared/context/SocketContext';
 import { QuizAnswerOverlay } from './RetroWindow';
@@ -203,11 +205,36 @@ function QuestionImage({ src, className = '' }) {
   );
 }
 
+function QuestionPhaseTimer({ endsAt, duration }) {
+  const remaining = useTimer(endsAt);
+  const dur = duration || 60;
+  const progress = Math.min(1, Math.max(0, (dur - remaining) / dur));
+  const low = remaining > 0 && remaining <= 5;
+
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        top: 24,
+        right: 24,
+        zIndex: 5,
+        pointerEvents: 'none',
+      }}
+    >
+      <PixelTimer
+        progress={progress}
+        low={low}
+        label={`${remaining} seconds left`}
+      />
+    </div>
+  );
+}
+
 function QuestionPhase({ gs, showAnswers }) {
   const hasImage = !!gs.image;
   return (
     <div
-      className="h-screen flex flex-col p-6 gap-4 bg-cover bg-center"
+      className="relative h-screen flex flex-col p-6 gap-4 bg-cover bg-center"
       style={{ backgroundImage: 'url(/tv/background.jpg)' }}
     >
       <div className="flex items-center text-white/70 text-lg bg-black/40 rounded-xl px-4 py-2">
@@ -224,6 +251,9 @@ function QuestionPhase({ gs, showAnswers }) {
           <AnswerGrid choices={gs.choices} className={hasImage ? 'flex-[2]' : 'flex-1'} />
           <AnsweredRow entries={gs.recentAnswers} />
         </>
+      )}
+      {gs.timer?.endsAt && (
+        <QuestionPhaseTimer endsAt={gs.timer.endsAt} duration={gs.timer.duration} />
       )}
     </div>
   );
