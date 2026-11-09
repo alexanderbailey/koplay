@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { MockSocketProvider } from '../shared/context/SocketContext';
 import TriviaTV from '../games/trivia/TriviaTV';
@@ -28,9 +28,10 @@ function explanationFor(mode) {
   return LONG_EXPLANATION;
 }
 
-function buildGameState({ explanation, explanationVisible, withImage, textMode, correctIndex }) {
+function buildGameState({ phase, endsAt, explanation, explanationVisible, withImage, textMode, correctIndex }) {
+  const isQuestion = phase === 'question';
   return {
-    phase: 'reveal',
+    phase,
     round: 2,
     totalRounds: 3,
     roundName: 'Medium',
@@ -41,10 +42,11 @@ function buildGameState({ explanation, explanationVisible, withImage, textMode, 
       ? 'https://commons.wikimedia.org/wiki/Special:FilePath/Photosynthesis_en.svg?width=640'
       : null,
     choices: CHOICES,
-    correctIndex,
-    choiceCounts: [1, 3, 0, 1],
-    explanation: explanation ? explanationFor(textMode) : null,
-    explanationVisible: explanation ? explanationVisible : false,
+    correctIndex: isQuestion ? null : correctIndex,
+    choiceCounts: isQuestion ? null : [1, 3, 0, 1],
+    recentAnswers: [],
+    explanation: !isQuestion && explanation ? explanationFor(textMode) : null,
+    explanationVisible: !isQuestion && explanation ? explanationVisible : false,
     playerResults: [
       { name: 'Ada', correct: true, avatarId: 'avatar_00', choiceIndex: correctIndex },
       { name: 'Ben', correct: false, avatarId: 'avatar_05', choiceIndex: 0 },
@@ -53,7 +55,7 @@ function buildGameState({ explanation, explanationVisible, withImage, textMode, 
     ],
     scores: { p1: 2, p2: 1, p3: 3, p4: 2 },
     earlyEnd: false,
-    timer: null,
+    timer: isQuestion ? { endsAt, duration: 60 } : null,
   };
 }
 
@@ -64,8 +66,14 @@ function Preview() {
   const [textMode, setTextMode] = useState('long'); // short | long | max
   const [correctIndex, setCorrectIndex] = useState(1);
   const [animKey, setAnimKey] = useState(0);
+  const [phase, setPhase] = useState('reveal'); // reveal | question
+  const [startSecs, setStartSecs] = useState(60);
+  // Restart the countdown whenever the phase or starting point changes
+  const endsAt = useMemo(() => Date.now() + startSecs * 1000, [phase, startSecs]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const gameState = buildGameState({
+    phase,
+    endsAt,
     explanation: hasExplanation,
     explanationVisible: visible,
     withImage,
@@ -91,10 +99,34 @@ function Preview() {
         <TriviaTV key={animKey} gameState={gameState} players={PLAYERS} />
 
         <div
-          className="absolute left-3 top-3 z-50 flex flex-wrap items-center bg-black/80 text-white text-sm"
+          className="absolute left-3 bottom-3 z-50 flex flex-wrap items-center bg-black/80 text-white text-sm"
           style={{ padding: '8px 10px', maxWidth: '92vw' }}
         >
-          <span className="font-bold" style={{ marginRight: 12 }}>Reveal preview</span>
+          <span className="font-bold" style={{ marginRight: 12 }}>Trivia preview</span>
+          <label className="flex items-center" style={{ marginRight: 10 }}>
+            Phase
+            <select
+              value={phase}
+              onChange={(e) => setPhase(e.target.value)}
+              style={{ marginLeft: 4, color: '#000' }}
+            >
+              <option value="reveal">reveal</option>
+              <option value="question">question</option>
+            </select>
+          </label>
+          <label className="flex items-center" style={{ marginRight: 10 }}>
+            Timer from
+            <select
+              value={startSecs}
+              disabled={phase !== 'question'}
+              onChange={(e) => setStartSecs(Number(e.target.value))}
+              style={{ marginLeft: 4, color: '#000' }}
+            >
+              <option value={60}>60s</option>
+              <option value={30}>30s</option>
+              <option value={8}>8s (low)</option>
+            </select>
+          </label>
           <label className="flex items-center" style={{ marginRight: 10 }}>
             <input
               type="checkbox"

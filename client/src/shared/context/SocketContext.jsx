@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState, useRef, useCallback } from 'react';
 import { io } from 'socket.io-client';
+import { syncServerClock } from '../clock';
 
 const SocketContext = createContext(null);
 
@@ -60,7 +61,10 @@ export function SocketProvider({ role, authToken, screenMode, code, quizId, onAu
       if (!isPlayer) setMyId(socket.id);
     });
     socket.on('disconnect', () => setConnected(false));
-    socket.on('session:state', (state) => setSessionState(state));
+    socket.on('session:state', (state) => {
+      if (state) syncServerClock(state.serverNow);
+      setSessionState(state);
+    });
     socket.on('player:identity', ({ playerId, secret, replaced: wasReplaced }) => {
       if (wasReplaced) {
         // Another tab/browser took over this seat; it shares our storage, so leave it alone.

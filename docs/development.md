@@ -21,5 +21,4 @@ The display still targets Samsung Tizen 5 (Chrome 63). See the compatibility sec
 
 With the Vite client running (`npm run dev` in `client/`, or `npm run dev:client` from the repo root):
 
-- [Pixel countdown timer](http://localhost:5173/dev-pixel-timer.html) - self-timing countdown, manual progress slider, accent colours, tick/smooth modes. Not included in production builds.
-- [Trivia reveal + explanation popup](http://localhost:5173/dev-trivia-reveal.html) - toggles for explanation on/off, visible, long text, image, and replay pop-in. Uses the real `TriviaTV` component with fake state; not included in production builds.
+- [Trivia question + reveal](http://localhost:5173/dev-trivia-reveal.html) - question screen with the countdown ring (full, mid, last seconds), and the reveal with the explanation panel: toggles for explanation on/off, visible, answer colour, text length, image, and replay pop-in. Uses the real `TriviaTV` component with fake state; not included in production builds.

@@ -1,8 +1,11 @@
 import { useState, useEffect } from 'react';
+import { serverNow } from '../clock';
+
+// Whole seconds left until `endsAt` (a server timestamp), counted on the server clock.
 
 export function useTimer(endsAt) {
   const [remaining, setRemaining] = useState(() =>
-    endsAt ? Math.max(0, Math.ceil((endsAt - Date.now()) / 1000)) : 0
+    endsAt ? Math.max(0, Math.ceil((endsAt - serverNow()) / 1000)) : 0
   );
 
   useEffect(() => {
@@ -12,7 +15,7 @@ export function useTimer(endsAt) {
     }
 
     function tick() {
-      setRemaining(Math.max(0, Math.ceil((endsAt - Date.now()) / 1000)));
+      setRemaining(Math.max(0, Math.ceil((endsAt - serverNow()) / 1000)));
     }
     tick();
     const id = setInterval(tick, 250);
