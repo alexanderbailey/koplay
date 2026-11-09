@@ -3,6 +3,7 @@ import PlayAgainButton from '../../shared/components/PlayAgainButton';
 import AVATARS from '../../shared/avatars';
 import SOUNDS from '../../shared/sounds';
 import PixelAvatar from '../../shared/components/PixelAvatar';
+import { serverNow } from '../../shared/clock';
 
 const CHOICE_LABELS = ['A', 'B', 'C', 'D'];
 const CHOICE_BG = [
@@ -330,12 +331,12 @@ function QuestionPhase({ gs, myId, isHost, players, emit }) {
   const [answered, setAnswered] = useState(serverAnswered);
   const [selectedIndex, setSelectedIndex] = useState(null);
   // Skip the "Get Ready" pause if we're rejoining a question that's already running.
-  const startedAt = gs.timer ? gs.timer.endsAt - gs.timer.duration * 1000 : Date.now();
-  const [ready, setReady] = useState(Date.now() - startedAt >= 3000);
+  const startedAt = gs.timer ? gs.timer.endsAt - gs.timer.duration * 1000 : serverNow();
+  const [ready, setReady] = useState(serverNow() - startedAt >= 3000);
 
   useEffect(() => {
     if (ready) return undefined;
-    const t = setTimeout(() => setReady(true), Math.max(0, 3000 - (Date.now() - startedAt)));
+    const t = setTimeout(() => setReady(true), Math.max(0, 3000 - (serverNow() - startedAt)));
     return () => clearTimeout(t);
   }, []);
 

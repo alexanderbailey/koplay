@@ -1,0 +1,121 @@
+/*
+  Sizes are in vh so the panel keeps the same proportions on any screen: a
+  long answer plus a 300-character explanation fits at 1280x720 as well as 4K.
+  No flex gap (Chrome 63): spacing uses margins.
+*/
+
+.xp-dim {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 20;
+  background: rgba(5, 5, 12, 0.7);
+  pointer-events: none;
+  animation: xp-fade-in 300ms ease-out both;
+}
+
+/* Winning bar / label: above the dim, below the panel */
+.xp-winner {
+  position: relative;
+  z-index: 25;
+}
+
+.xp-popup {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4vh 4vw;
+  pointer-events: none;
+}
+
+.xp-card {
+  width: 70vw;
+  max-height: 86vh;
+  overflow: hidden;
+  padding: 4vh 5vh 4.5vh;
+  /* Fill and text colour come from the answer (inline); the white ring matches
+     the ring-4 ring-white on the correct answer tile, scaled with the card */
+  background: #16213e;
+  color: #ffffff;
+  border-radius: 1.5rem;
+  box-shadow: 0 0 0 0.6vh #ffffff;
+  animation: xp-in 500ms ease-out both;
+}
+
+.xp-label {
+  font-size: 2.2vh;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  opacity: 0.75;
+}
+
+.xp-answer {
+  display: flex;
+  align-items: center;
+  margin-top: 2vh;
+}
+
+.xp-badge {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 7vh;
+  height: 7vh;
+  margin-right: 2.5vh;
+  border-radius: 0.75rem;
+  font-size: 4.4vh;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.xp-heading {
+  font-size: 5.2vh;
+  font-weight: 900;
+  line-height: 1.1;
+  overflow-wrap: break-word;
+  word-wrap: break-word;
+  min-width: 0;
+}
+
+.xp-text {
+  margin-top: 3vh;
+  font-size: 3.6vh;
+  line-height: 1.35;
+}
+
+/* Exit: shrink + fade (duration must match EXPLANATION_OUT_MS in TriviaTV) */
+.xp-card.xp-leaving { animation: xp-out 220ms ease-in both; }
+.xp-dim.xp-leaving { animation: xp-fade-out 220ms ease-in both; }
+
+/* Overshoot pop-in (transform + opacity only: Chrome 63 safe) */
+@keyframes xp-in {
+  0%   { transform: scale(0.85); opacity: 0; }
+  55%  { transform: scale(1.04); opacity: 1; }
+  100% { transform: scale(1);    opacity: 1; }
+}
+@keyframes xp-out {
+  0%   { transform: scale(1);    opacity: 1; }
+  100% { transform: scale(0.85); opacity: 0; }
+}
+@keyframes xp-fade-in {
+  0%   { opacity: 0; }
+  100% { opacity: 1; }
+}
+@keyframes xp-fade-out {
+  0%   { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .xp-card, .xp-card.xp-leaving, .xp-dim, .xp-dim.xp-leaving { animation: none; }
+}

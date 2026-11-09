@@ -140,10 +140,7 @@ export default defineConfig(({ command }) => ({
         phone: resolve(__dirname, 'phone.html'),
         // Dev-only UI harnesses (not shipped in production build)
         ...(command === 'serve'
-          ? {
-              'dev-pixel-timer': resolve(__dirname, 'dev-pixel-timer.html'),
-              'dev-trivia-reveal': resolve(__dirname, 'dev-trivia-reveal.html'),
-            }
+          ? { 'dev-trivia-reveal': resolve(__dirname, 'dev-trivia-reveal.html') }
           : {}),
       },
     },

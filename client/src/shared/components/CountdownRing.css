@@ -1,0 +1,56 @@
+.cr {
+  position: relative;
+  flex: none;
+}
+
+.cr-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* Same translucency as the bg-black/60 panels */
+.cr-face { fill: rgba(0, 0, 0, 0.6); }
+
+.cr-track {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.15);
+  stroke-width: 8;
+}
+
+/* Brand teal; seconds arrive once a second, the transition sweeps between them */
+.cr-ring {
+  fill: none;
+  stroke: #4ecdc4;
+  stroke-width: 8;
+  transition: stroke-dashoffset 1s linear, stroke 0.3s ease;
+}
+
+.cr-text {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.cr--low .cr-ring { stroke: #ff6b6b; }
+.cr--low .cr-text {
+  color: #ff6b6b;
+  animation: cr-pulse 1s ease-in-out infinite;
+}
+
+@keyframes cr-pulse {
+  50% { opacity: 0.5; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cr-ring { transition: none; }
+  .cr--low .cr-text { animation: none; }
+}

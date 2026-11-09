@@ -28,6 +28,8 @@ function broadcastState(gameCode) {
     ...room.session.getPublicState(),
     gameCode,
     hostAuthRequired: !room.session.authUser && !room.autoQuizId,
+    // Lets clients count down timers against the server clock, not their own
+    serverNow: Date.now(),
   });
 }
 rooms.setBroadcast(broadcastState);
@@ -275,6 +277,7 @@ io.on('connection', (socket) => {
       ...session.getPublicState(),
       gameCode,
       hostAuthRequired: !session.authUser && !room.autoQuizId,
+      serverNow: Date.now(),
     });
     if (existingId) broadcastState(gameCode);
 

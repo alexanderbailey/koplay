@@ -3,14 +3,14 @@ import ConfettiCanvas from '../../shared/components/ConfettiCanvas';
 import AVATARS from '../../shared/avatars';
 import PixelAvatar from '../../shared/components/PixelAvatar';
 import QRCodeCanvas from '../../shared/components/QRCodeCanvas';
-import { PixelTimer } from '../../shared/components/PixelTimer';
+import CountdownRing from '../../shared/components/CountdownRing';
 import { useTimer } from '../../shared/hooks/useTimer';
 import { playSoundById, createMusicElement } from '../../shared/sounds';
 import { useSocket } from '../../shared/context/SocketContext';
-import { QuizAnswerOverlay } from './RetroWindow';
+import ExplanationOverlay from './ExplanationOverlay';
 
 const CHOICE_LABELS = ['A', 'B', 'C', 'D'];
-// Must match the qa-out animation duration in RetroWindow.css
+// Must match the xp-out animation duration in ExplanationOverlay.css
 const EXPLANATION_OUT_MS = 220;
 const CHOICE_BG = ['bg-red-600', 'bg-blue-600', 'bg-amber-500', 'bg-teal-600'];
 const CHOICE_BAR = ['bg-red-500', 'bg-blue-500', 'bg-amber-400', 'bg-teal-500'];
@@ -205,42 +205,37 @@ function QuestionImage({ src, className = '' }) {
   );
 }
 
-function QuestionPhaseTimer({ endsAt, duration }) {
-  const remaining = useTimer(endsAt);
-  const dur = duration || 60;
-  const progress = Math.min(1, Math.max(0, (dur - remaining) / dur));
-  const low = remaining > 0 && remaining <= 5;
+const TIMER_SIZE_VH = 11;
+// Ring + 2vh inset + breathing room
+const TIMER_GUTTER = `${TIMER_SIZE_VH + 4}vh`;
 
-  return (
-    <div
-      style={{
-        position: 'absolute',
-        top: 24,
-        right: 24,
-        zIndex: 5,
-        pointerEvents: 'none',
-      }}
-    >
-      <PixelTimer
-        progress={progress}
-        low={low}
-        label={`${remaining} seconds left`}
-      />
-    </div>
-  );
+function QuestionTimer({ endsAt, duration }) {
+  const remaining = useTimer(endsAt);
+  return <CountdownRing remaining={remaining} duration={duration || 60} size={TIMER_SIZE_VH} />;
 }
 
 function QuestionPhase({ gs, showAnswers }) {
   const hasImage = !!gs.image;
   return (
     <div
-      className="relative h-screen flex flex-col p-6 gap-4 bg-cover bg-center"
+      className="h-screen flex flex-col p-6 gap-4 bg-cover bg-center"
       style={{ backgroundImage: 'url(/tv/background.jpg)' }}
     >
       <div className="flex items-center text-white/70 text-lg bg-black/40 rounded-xl px-4 py-2">
         <span>{gs.roundName} · Q{gs.questionNum}/{gs.totalQuestions}</span>
       </div>
-      <div className={`${hasImage ? '' : 'flex-[2]'} flex items-center justify-center px-6 py-4 bg-black/40 rounded-xl`}>
+      {/* Timer sits in the panel's top-right corner; equal side padding keeps the
+          question centred and clear of it, and minHeight stops the ring spilling
+          out when an image makes the panel short. */}
+      <div
+        className={`${hasImage ? '' : 'flex-[2]'} relative flex items-center justify-center py-4 bg-black/40 rounded-xl`}
+        style={{ paddingLeft: TIMER_GUTTER, paddingRight: TIMER_GUTTER, minHeight: TIMER_GUTTER }}
+      >
+        {gs.timer && gs.timer.endsAt && (
+          <div style={{ position: 'absolute', top: '2vh', right: '2vh' }}>
+            <QuestionTimer endsAt={gs.timer.endsAt} duration={gs.timer.duration} />
+          </div>
+        )}
         <p className={`${hasImage ? 'text-4xl' : 'text-7xl'} font-bold text-white text-center leading-tight`}>
           {gs.question}
         </p>
@@ -251,9 +246,6 @@ function QuestionPhase({ gs, showAnswers }) {
           <AnswerGrid choices={gs.choices} className={hasImage ? 'flex-[2]' : 'flex-1'} />
           <AnsweredRow entries={gs.recentAnswers} />
         </>
-      )}
-      {gs.timer?.endsAt && (
-        <QuestionPhaseTimer endsAt={gs.timer.endsAt} duration={gs.timer.duration} />
       )}
     </div>
   );
@@ -278,8 +270,7 @@ function RevealPhase({ gs, players }) {
   const overlayLeaving = overlayMounted && !showExplanation;
   const correctIndex = gs.correctIndex;
   const correctText = (gs.choices && correctIndex != null) ? gs.choices[correctIndex] : '';
-  const correctLabel = correctIndex != null ? CHOICE_LABELS[correctIndex] : '';
-  /* Harder dim on losers while the popup is up; winner stays full via qa-winner */
+  /* Harder dim on losers while the popup is up; winner stays full via xp-winner */
   const loserDim = showExplanation ? 'opacity-15' : 'opacity-20';
   const loserLabelDim = showExplanation ? 'opacity-15' : 'opacity-25';
 
@@ -304,7 +295,7 @@ function RevealPhase({ gs, players }) {
             return (
               <div
                 key={i}
-                className={`flex-1 flex flex-col items-center gap-1 ${raise ? 'qa-winner' : ''}`}
+                className={`flex-1 flex flex-col items-center gap-1 ${raise ? 'xp-winner' : ''}`}
               >
                 <span className={`text-2xl font-bold ${isCorrect ? 'text-white' : 'text-white/60'}`}>
                   {count}{isCorrect ? ' ✓' : ''}
@@ -329,7 +320,7 @@ function RevealPhase({ gs, players }) {
               key={i}
               className={`flex-1 rounded-xl px-3 py-3 text-center ${CHOICE_BG[i]} ${
                 isCorrect ? 'ring-4 ring-white' : loserLabelDim
-              } ${raise ? 'qa-winner' : ''}`}
+              } ${raise ? 'xp-winner' : ''}`}
             >
               <span className="text-white font-bold text-lg block">{CHOICE_LABELS[i]}</span>
               <span className="text-white/90 text-sm leading-snug">{choice}</span>
@@ -341,12 +332,11 @@ function RevealPhase({ gs, players }) {
       <AnsweredRow entries={gs.playerResults || []} />
 
       {overlayMounted && (
-        <QuizAnswerOverlay
+        <ExplanationOverlay
           leaving={overlayLeaving}
-          letter={correctLabel}
+          index={correctIndex}
           answer={correctText}
           explanation={gs.explanation}
-          label="CORRECT ANSWER"
         />
       )}
     </div>
