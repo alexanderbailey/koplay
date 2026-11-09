@@ -205,9 +205,13 @@ function QuestionImage({ src, className = '' }) {
   );
 }
 
+const TIMER_SIZE_VH = 11;
+// Ring + 2vh inset + breathing room
+const TIMER_GUTTER = `${TIMER_SIZE_VH + 4}vh`;
+
 function QuestionTimer({ endsAt, duration }) {
   const remaining = useTimer(endsAt);
-  return <CountdownRing remaining={remaining} duration={duration || 60} size={6} />;
+  return <CountdownRing remaining={remaining} duration={duration || 60} size={TIMER_SIZE_VH} />;
 }
 
 function QuestionPhase({ gs, showAnswers }) {
@@ -217,13 +221,21 @@ function QuestionPhase({ gs, showAnswers }) {
       className="h-screen flex flex-col p-6 gap-4 bg-cover bg-center"
       style={{ backgroundImage: 'url(/tv/background.jpg)' }}
     >
-      <div className="flex items-center justify-between text-white/70 text-lg bg-black/40 rounded-xl px-4 py-2">
+      <div className="flex items-center text-white/70 text-lg bg-black/40 rounded-xl px-4 py-2">
         <span>{gs.roundName} · Q{gs.questionNum}/{gs.totalQuestions}</span>
-        {gs.timer && gs.timer.endsAt && (
-          <QuestionTimer endsAt={gs.timer.endsAt} duration={gs.timer.duration} />
-        )}
       </div>
-      <div className={`${hasImage ? '' : 'flex-[2]'} flex items-center justify-center px-6 py-4 bg-black/40 rounded-xl`}>
+      {/* Timer sits in the panel's top-right corner; equal side padding keeps the
+          question centred and clear of it, and minHeight stops the ring spilling
+          out when an image makes the panel short. */}
+      <div
+        className={`${hasImage ? '' : 'flex-[2]'} relative flex items-center justify-center py-4 bg-black/40 rounded-xl`}
+        style={{ paddingLeft: TIMER_GUTTER, paddingRight: TIMER_GUTTER, minHeight: TIMER_GUTTER }}
+      >
+        {gs.timer && gs.timer.endsAt && (
+          <div style={{ position: 'absolute', top: '2vh', right: '2vh' }}>
+            <QuestionTimer endsAt={gs.timer.endsAt} duration={gs.timer.duration} />
+          </div>
+        )}
         <p className={`${hasImage ? 'text-4xl' : 'text-7xl'} font-bold text-white text-center leading-tight`}>
           {gs.question}
         </p>
